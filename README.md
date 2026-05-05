@@ -11,6 +11,7 @@ This project uses Apache Hadoop, Spark, Kafka, and Maven.
 - **`MovieRatingAverage`**: The MapReduce driver class that configures and launches the Hadoop job.
 - **`MovieLensAnalysis`**: Spark batch analysis (top 10 movies, genre stats, ratings distribution, full movie stats).
 - **`RatingProducer`**: Kafka producer that streams `ratings.dat` to the `movie-rating` topic.
+- **`LetterboxdProducer`**: TMDB-backed Kafka producer that publishes popular movie ratings from the TMDB API.
 - **`RatingStreamProcessor`**: Spark Structured Streaming job that reads Kafka and computes live averages per movie.
 
 ## Prerequisites
@@ -123,6 +124,19 @@ The compiled JAR will be created in the `target/` directory:
    java -cp target/movielens-mapreduce-1.0-SNAPSHOT-jar-with-dependencies.jar \
      movielens.kafka.RatingProducer /movielens/ratings.dat
    ```
+
+4. **TMDB producer (no scraping):**
+    Export your TMDB bearer token and run the producer to publish popular movies.
+   Do not commit the token to git.
+    ```bash
+    export TMDB_TOKEN="<your_tmdb_bearer_token>"
+    java -cp target/movielens-mapreduce-1.0-SNAPSHOT-jar-with-dependencies.jar \
+       movielens.kafka.LetterboxdProducer
+    ```
+
+    Optional arguments:
+    - `--loop` → run continuously
+    - `<pages>` → number of TMDB pages to fetch per cycle (default: 1)
 
 4. **Streaming output:**
    The console will display live `movieId`, `avgRating`, and `totalVotes` updates.

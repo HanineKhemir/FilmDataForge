@@ -1,6 +1,17 @@
 package movielens.spark;
 
+import org.apache.hadoop.hbase.HBaseConfiguration;
+import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.client.Connection;
+import org.apache.hadoop.hbase.client.ConnectionFactory;
+import org.apache.hadoop.hbase.client.Put;
+import org.apache.hadoop.hbase.client.Table;
+import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.spark.api.java.function.ForeachPartitionFunction;
 import org.apache.spark.sql.*;
+
+import java.io.IOException;
+
 import static org.apache.spark.sql.functions.*;
 
 public class MovieLensAnalysis {
@@ -91,7 +102,10 @@ public class MovieLensAnalysis {
         System.out.println("\n========== DISTRIBUTION DES NOTES ==========");
         ratingDist.show(false);
 
-        // 8. Sauvegarder dans HDFS
+        // 8. Sauvegarder dans HBase
+        writeMovieStatsToHBase(moviesWithStats);
+
+        // 9. Sauvegarder dans HDFS
         moviesWithStats
                 .orderBy(col("avgRating").desc())
                 .coalesce(1)
@@ -117,7 +131,41 @@ public class MovieLensAnalysis {
                 .option("header", "true")
                 .csv(outputPath + "/rating-distribution");
 
-        System.out.println("\nRésultats sauvegardés dans : " + outputPath);
+                System.out.println("\nRésultats sauvegardés dans : " + outputPath);
         spark.stop();
     }
+
+        private static void writeMovieStatsToHBase(Dataset<Row> moviesWithStats) {
+                moviesWithStats.foreachPartition((ForeachPartitionFunction<Row>) rows -> {
+                        org.apache.hadoop.conf.Configuration config = HBaseConfiguration.create();
+                        try (Connection connection = ConnectionFactory.createConnection(config);
+                                 Table table = connection.getTable(TableName.valueOf("movie_stats"))) {
+                                while (rows.hasNext()) {
+                                        Row row = rows.next();
+                                        Integer movieId = row.getAs("movieId");
+                                        String title = row.getAs("title");
+                                        Double avgRating = row.getAs("avgRating");
+                                        Long totalVotes = row.getAs("totalVotes");
+
+                                        if (movieId == null) {
+                                                continue;
+                                        }
+
+                                        Put put = new Put(Bytes.toBytes(String.valueOf(movieId)));
+                                        if (title != null) {
+                                                put.addColumn(Bytes.toBytes("info"), Bytes.toBytes("title"), Bytes.toBytes(title));
+                                        }
+                                        if (avgRating != null) {
+                                                put.addColumn(Bytes.toBytes("ratings"), Bytes.toBytes("avgRating"), Bytes.toBytes(avgRating));
+                                        }
+                                        if (totalVotes != null) {
+                                                put.addColumn(Bytes.toBytes("ratings"), Bytes.toBytes("totalVotes"), Bytes.toBytes(totalVotes));
+                                        }
+                                        table.put(put);
+                                }
+                        } catch (IOException e) {
+                                throw new RuntimeException("Error writing to HBase", e);
+                        }
+                });
+        }
 }

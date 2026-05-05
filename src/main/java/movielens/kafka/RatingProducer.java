@@ -27,7 +27,6 @@ public class RatingProducer {
         props.put(ProducerConfig.RETRIES_CONFIG, 3);
 
         KafkaProducer<String, String> producer = new KafkaProducer<>(props);
-
         System.out.println("Démarrage du producer Kafka...");
         System.out.println("Topic : " + TOPIC);
 
@@ -38,31 +37,24 @@ public class RatingProducer {
 
             String line;
             while ((line = br.readLine()) != null) {
-
                 line = line.trim();
                 if (line.isEmpty()) continue;
-
                 String[] parts = line.split("::");
                 if (parts.length != 4) continue;
 
                 String movieId = parts[1];
-
                 ProducerRecord<String, String> record =
                     new ProducerRecord<>(TOPIC, movieId, line);
 
                 producer.send(record, (metadata, exception) -> {
-                    if (exception != null) {
+                    if (exception != null)
                         System.err.println("Erreur : " + exception.getMessage());
-                    }
                 });
 
                 count++;
-
-                if (count % 1000 == 0) {
+                if (count % 1000 == 0)
                     System.out.println(count + " ratings envoyés...");
-                }
 
-                // Simuler un flux temps réel
                 Thread.sleep(10);
             }
         }
