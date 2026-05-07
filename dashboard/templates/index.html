@@ -109,19 +109,22 @@
     </div>
   </div>
 
-  <!-- Row 3: Live stream -->
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+  <!-- Row 3: Live stream — side by side -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
     <!-- Per-film live averages chart -->
-    <div class="card col-span-1">
+    <div class="card">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-lg font-semibold text-emerald-400 flex items-center gap-2">
-          <span class="pulse"></span> Live Avg per Film
+          <span class="pulse"></span> Live Avg Rating per Film
         </h2>
         <span class="text-xs text-slate-500" id="stream-ts">every 5s</span>
       </div>
-      <canvas id="stream-film-chart"></canvas>
+      <canvas id="stream-film-chart" style="min-height:380px"></canvas>
     </div>
+
+    <!-- Recent ratings feed -->
+    <div class="card">
 
     <!-- Recent ratings feed -->
     <div class="card col-span-1 lg:col-span-2">
@@ -304,7 +307,7 @@ async function loadMRChart() {
     const r = await fetch('/api/mapreduce');
     const rows = await r.json();
     if (!rows.length) return;
-    const labels = rows.map(r => `#${r.movieId}`);
+    const labels = rows.map(r => movieName(r.movieId));
     const data   = rows.map(r => r.avgRating);
     const ctx = document.getElementById('mr-chart').getContext('2d');
     if (mrChart) mrChart.destroy();
@@ -389,10 +392,25 @@ async function loadStream() {
       },
       options: {
         indexAxis: 'y',
-        plugins: { legend: { display: false } },
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => ` Avg: ${ctx.parsed.x} / 5.0`
+            }
+          }
+        },
         scales: {
-          x: { min: 0, max: 5, ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
-          y: { ticks: { color: '#94a3b8', font: { size: 11 } }, grid: { display: false } }
+          x: {
+            min: 0, max: 5,
+            ticks: { color: '#94a3b8', font: { size: 13 } },
+            grid: { color: '#334155' }
+          },
+          y: {
+            ticks: { color: '#e2e8f0', font: { size: 14, weight: 'bold' } },
+            grid: { display: false }
+          }
         }
       }
     });
@@ -431,18 +449,18 @@ async function loadTotalMovies() {
 }
 
 // ─── Boot ─────────────────────────────────────────────────
-loadMovieMap().then(() => {
-  loadStream();
-  setInterval(() => { loadStream(); loadStatus(); }, 5000);
-});
 loadStatus();
 loadTotalMovies();
 loadTotalRatings();
 loadTop10();
 loadGenreChart();
 loadDistChart();
-loadMRChart();
-loadStream();
+
+loadMovieMap().then(() => {
+  loadMRChart();
+  loadStream();
+  setInterval(() => { loadStream(); loadStatus(); }, 5000);
+});
 
 </script>
 </body>
