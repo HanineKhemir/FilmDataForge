@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MovieLens Big Data Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { background: #0f172a; color: #e2e8f0; font-family: 'Inter', sans-serif; }
+    .card { background: #1e293b; border-radius: 14px; padding: 24px; border: 1px solid #334155; }
+    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+    .badge-ok  { background: #052e16; color: #4ade80; border: 1px solid #166534; }
+    .badge-off { background: #1c1917; color: #78716c; border: 1px solid #44403c; }
+    .pulse { width: 8px; height: 8px; border-radius: 50%; background: #4ade80; animation: pulse 1.5s infinite; }
+    .pulse-off { width: 8px; height: 8px; border-radius: 50%; background: #78716c; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+    tr:hover td { background: #0f172a44; }
+    td, th { padding: 8px 4px; }
+    ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: #1e293b; } ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+  </style>
+</head>
+<body class="min-h-screen p-6">
+
+  <!-- Header -->
+  <div class="mb-8 flex flex-col gap-2">
+    <div class="flex items-center justify-between flex-wrap gap-4">
+      <div>
+        <h1 class="text-3xl font-bold text-white tracking-tight">MovieLens Big Data Dashboard</h1>
+        <p class="text-slate-400 mt-1 text-sm">Hadoop MapReduce &nbsp;·&nbsp; Apache Spark &nbsp;·&nbsp; Kafka Streaming &nbsp;·&nbsp; Letterboxd Scraper</p>
+      </div>
+      <div id="status-row" class="flex gap-2 flex-wrap"></div>
+    </div>
+    <!-- Stats summary -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
+      <div class="card py-4 text-center">
+        <div class="text-2xl font-bold text-indigo-400" id="stat-movies">—</div>
+        <div class="text-xs text-slate-400 mt-1">Total Movies</div>
+      </div>
+      <div class="card py-4 text-center">
+        <div class="text-2xl font-bold text-emerald-400" id="stat-ratings">—</div>
+        <div class="text-xs text-slate-400 mt-1">Total Ratings (MR)</div>
+      </div>
+      <div class="card py-4 text-center">
+        <div class="text-2xl font-bold text-amber-400" id="stat-genres">—</div>
+        <div class="text-xs text-slate-400 mt-1">Genres Analysed</div>
+      </div>
+      <div class="card py-4 text-center">
+        <div class="text-2xl font-bold text-rose-400" id="stat-stream">—</div>
+        <div class="text-xs text-slate-400 mt-1">Live Ratings</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 1: Top 10 + Genre chart -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+
+    <!-- Top 10 table -->
+    <div class="card">
+      <h2 class="text-lg font-semibold text-indigo-400 mb-4 flex items-center gap-2">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        Top 10 Movies &nbsp;<span class="text-xs text-slate-500 font-normal">(Spark Batch · min 100 votes)</span>
+      </h2>
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-slate-500 border-b border-slate-700 text-xs uppercase tracking-wide">
+            <th class="pb-2 text-left">#</th>
+            <th class="pb-2 text-left">Title</th>
+            <th class="pb-2 text-right">Avg</th>
+            <th class="pb-2 text-right">Votes</th>
+          </tr>
+        </thead>
+        <tbody id="top10-table">
+          <tr><td colspan="4" class="text-center py-6 text-slate-500">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Genre chart -->
+    <div class="card flex flex-col">
+      <h2 class="text-lg font-semibold text-indigo-400 mb-4 flex items-center gap-2">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/></svg>
+        Avg Rating by Genre &nbsp;<span class="text-xs text-slate-500 font-normal">(Spark Batch)</span>
+      </h2>
+      <div class="flex-1 flex items-center">
+        <canvas id="genre-chart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 2: Rating dist + MapReduce bar -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+
+    <!-- Rating distribution donut -->
+    <div class="card flex flex-col">
+      <h2 class="text-lg font-semibold text-indigo-400 mb-4">Rating Distribution</h2>
+      <div class="flex-1 flex items-center justify-center">
+        <canvas id="dist-chart" style="max-height:280px"></canvas>
+      </div>
+    </div>
+
+    <!-- MapReduce bar chart -->
+    <div class="card col-span-1 lg:col-span-2">
+      <h2 class="text-lg font-semibold text-indigo-400 mb-4 flex items-center gap-2">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+        Top 20 by Avg Rating &nbsp;<span class="text-xs text-slate-500 font-normal">(MapReduce output)</span>
+      </h2>
+      <canvas id="mr-chart" style="max-height:280px"></canvas>
+    </div>
+  </div>
+
+  <!-- Row 3: Live stream table -->
+  <div class="card">
+    <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+      <h2 class="text-lg font-semibold text-emerald-400 flex items-center gap-2">
+        <span class="pulse"></span>
+        Live Streaming Feed
+      </h2>
+      <span class="text-xs text-slate-500" id="stream-ts">Auto-refresh every 5s</span>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-slate-500 border-b border-slate-700 text-xs uppercase tracking-wide">
+            <th class="pb-2 text-left">User</th>
+            <th class="pb-2 text-left">Movie / ID</th>
+            <th class="pb-2 text-right">Rating</th>
+            <th class="pb-2 text-right">Source</th>
+          </tr>
+        </thead>
+        <tbody id="stream-table">
+          <tr><td colspan="4" class="text-center py-6 text-slate-500">Waiting for stream data…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+<script>
+const COLORS = [
+  '#6366f1','#10b981','#f59e0b','#f43f5e','#8b5cf6',
+  '#0ea5e9','#ec4899','#14b8a6','#a3e635','#fb923c',
+  '#e879f9','#38bdf8','#4ade80','#fbbf24','#f87171',
+  '#a78bfa','#34d399','#fcd34d','#fb7185','#60a5fa'
+];
+
+function stars(avg) {
+  const full = Math.floor(avg / 1);
+  const v = parseFloat(avg);
+  let s = '';
+  for (let i = 1; i <= 5; i++) {
+    if (v >= i) s += '<span class="text-amber-400">★</span>';
+    else if (v >= i - 0.5) s += '<span class="text-amber-400">½</span>';
+    else s += '<span class="text-slate-700">★</span>';
+  }
+  return s;
+}
+
+function sourceBadge(src) {
+  if (!src) return '';
+  const colors = { letterboxd: 'text-emerald-400', movielens: 'text-indigo-400' };
+  const c = colors[src] || 'text-slate-400';
+  return `<span class="${c} font-medium capitalize">${src}</span>`;
+}
+
+// ─── Status badges ───────────────────────────────────────
+async function loadStatus() {
+  try {
+    const r = await fetch('/api/status');
+    const d = await r.json();
+    const row = document.getElementById('status-row');
+    const badges = [
+      { label: 'MapReduce', key: 'mapreduce' },
+      { label: 'Spark Batch', key: 'spark_batch' },
+      { label: 'Streaming', key: 'streaming' },
+    ];
+    row.innerHTML = badges.map(b => {
+      const on = d[b.key];
+      return `<span class="badge ${on ? 'badge-ok' : 'badge-off'}">
+        <span class="${on ? 'pulse' : 'pulse-off'}"></span>${b.label}
+      </span>`;
+    }).join('');
+  } catch(e) {}
+}
+
+// ─── Top 10 table ────────────────────────────────────────
+async function loadTop10() {
+  const tb = document.getElementById('top10-table');
+  try {
+    const r = await fetch('/api/top10');
+    const rows = await r.json();
+    if (!rows.length) { tb.innerHTML = '<tr><td colspan="4" class="text-center py-6 text-slate-500">No data yet — run Spark batch first.</td></tr>'; return; }
+    document.getElementById('stat-movies').textContent = rows.length;
+    tb.innerHTML = rows.map((row, i) => `
+      <tr class="border-b border-slate-800 transition-colors">
+        <td class="text-slate-500 text-xs">${i+1}</td>
+        <td class="font-medium text-slate-200 max-w-xs truncate">${row.title || row.movieId}</td>
+        <td class="text-right">
+          <span class="font-bold text-amber-400">${parseFloat(row.avgRating).toFixed(2)}</span>
+        </td>
+        <td class="text-right text-slate-400">${parseInt(row.totalVotes).toLocaleString()}</td>
+      </tr>`).join('');
+  } catch(e) {
+    tb.innerHTML = '<tr><td colspan="4" class="text-center py-6 text-rose-400">Failed to load</td></tr>';
+  }
+}
+
+// ─── Genre chart ─────────────────────────────────────────
+let genreChart;
+async function loadGenreChart() {
+  try {
+    const r = await fetch('/api/genre-stats');
+    const rows = await r.json();
+    document.getElementById('stat-genres').textContent = rows.length;
+    if (!rows.length) return;
+    const labels = rows.map(r => r.genre);
+    const data   = rows.map(r => parseFloat(r.avgRating));
+    const ctx = document.getElementById('genre-chart').getContext('2d');
+    if (genreChart) genreChart.destroy();
+    genreChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{ label: 'Avg Rating', data, backgroundColor: COLORS.slice(0, labels.length), borderRadius: 6 }]
+      },
+      options: {
+        indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { min: 0, max: 5, ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } },
+          y: { ticks: { color: '#94a3b8', font: { size: 11 } }, grid: { display: false } }
+        }
+      }
+    });
+  } catch(e) {}
+}
+
+// ─── Rating distribution donut ───────────────────────────
+let distChart;
+async function loadDistChart() {
+  try {
+    const r = await fetch('/api/rating-distribution');
+    const rows = await r.json();
+    if (!rows.length) return;
+    const labels = rows.map(r => `★ ${r.rating}`);
+    const data   = rows.map(r => parseInt(r.count));
+    const ctx = document.getElementById('dist-chart').getContext('2d');
+    if (distChart) distChart.destroy();
+    distChart = new Chart(ctx, {
+      type: 'doughnut',
+      data: { labels, datasets: [{ data, backgroundColor: COLORS, borderWidth: 0 }] },
+      options: {
+        plugins: {
+          legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 11 }, padding: 10 } }
+        },
+        cutout: '60%'
+      }
+    });
+  } catch(e) {}
+}
+
+// ─── MapReduce bar chart ──────────────────────────────────
+let mrChart;
+async function loadMRChart() {
+  try {
+    const r = await fetch('/api/mapreduce');
+    const rows = await r.json();
+    document.getElementById('stat-ratings').textContent =
+      rows.reduce((s, r) => s + r.count, 0).toLocaleString();
+    if (!rows.length) return;
+    const labels = rows.map(r => `#${r.movieId}`);
+    const data   = rows.map(r => r.avgRating);
+    const ctx = document.getElementById('mr-chart').getContext('2d');
+    if (mrChart) mrChart.destroy();
+    mrChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{ label: 'Avg Rating', data, backgroundColor: '#6366f188', borderColor: '#6366f1', borderWidth: 1, borderRadius: 4 }]
+      },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { display: false } },
+          y: { min: 0, max: 5, ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+        }
+      }
+    });
+  } catch(e) {}
+}
+
+// ─── Live stream table ────────────────────────────────────
+async function loadStream() {
+  const tb = document.getElementById('stream-table');
+  try {
+    const r = await fetch('/api/streaming');
+    const rows = await r.json();
+    document.getElementById('stat-stream').textContent = rows.length;
+    document.getElementById('stream-ts').textContent = 'Updated ' + new Date().toLocaleTimeString();
+    if (!rows.length) {
+      tb.innerHTML = '<tr><td colspan="4" class="text-center py-6 text-slate-500">No stream data yet — start the Kafka producers.</td></tr>';
+      return;
+    }
+    const recent = [...rows].reverse().slice(0, 50);
+    tb.innerHTML = recent.map(row => {
+      const rating = parseFloat(row.rating);
+      const color  = rating >= 4 ? 'text-emerald-400' : rating >= 3 ? 'text-amber-400' : 'text-rose-400';
+      return `<tr class="border-b border-slate-800 transition-colors">
+        <td class="text-slate-300">${row.userId || '—'}</td>
+        <td class="text-slate-200 font-medium">${row.movieId || '—'}</td>
+        <td class="text-right font-bold ${color}">${isNaN(rating) ? '—' : rating.toFixed(1)}</td>
+        <td class="text-right">${sourceBadge(row.source)}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    tb.innerHTML = '<tr><td colspan="4" class="text-center py-6 text-rose-400">Could not reach HDFS</td></tr>';
+  }
+}
+
+// ─── Boot ─────────────────────────────────────────────────
+loadStatus();
+loadTop10();
+loadGenreChart();
+loadDistChart();
+loadMRChart();
+loadStream();
+
+// Refresh stream + status every 5 seconds
+setInterval(() => { loadStream(); loadStatus(); }, 5000);
+</script>
+</body>
+</html>

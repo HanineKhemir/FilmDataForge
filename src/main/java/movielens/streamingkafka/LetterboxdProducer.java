@@ -22,14 +22,21 @@ public class LetterboxdProducer {
 
     // Films à scraper en rotation
     private static final List<String> FILMS = Arrays.asList(
+        // critically acclaimed (high ratings)
         "inception",
         "the-dark-knight",
         "parasite-2019",
-        "everything-everywhere-all-at-once",
         "the-godfather",
-        "oppenheimer",
-        "poor-things-2023",
-        "past-lives"
+        // mixed reception (mid ratings)
+        "amsterdam",
+        "dont-worry-darling",
+        "babylon",
+        "morbius",
+        // divisive / polarising
+        "mother",
+        "tenet",
+        "cats",
+        "blonde"
     );
 
     private static final String USER_AGENT =
