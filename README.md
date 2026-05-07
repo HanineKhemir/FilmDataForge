@@ -10,8 +10,8 @@ This project uses Apache Hadoop, Spark, Kafka, and Maven.
 - **`RatingReducer`**: Aggregates all ratings for each Movie ID, calculating the average rating and the total count.
 - **`MovieRatingAverage`**: The MapReduce driver class that configures and launches the Hadoop job.
 - **`MovieLensAnalysis`**: Spark batch analysis (top 10 movies, genre stats, ratings distribution, full movie stats).
-- **`RatingProducer`**: Kafka producer that streams `ratings.dat` to the `movie-rating` topic.
-- **`LetterboxdProducer`**: TMDB-backed Kafka producer that publishes popular movie ratings from the TMDB API.
+- **`RatingProducer`**: Kafka producer that streams `ratings.dat` to the `movie-rating` topic (mock/offline data).
+- **`LetterboxdProducer`**: Real-time scraping producer (Letterboxd) that sends ratings to Kafka.
 - **`RatingStreamProcessor`**: Spark Structured Streaming job that reads Kafka and computes live averages per movie.
 
 ## Prerequisites
@@ -100,43 +100,86 @@ The compiled JAR will be created in the `target/` directory:
 
 ## How to Run (Kafka + Spark Streaming)
 
-1. **Create the Kafka topic:**
-   ```bash
-   kafka-topics.sh --create \
-     --topic movie-rating \
-     --replication-factor 1 \
-     --partitions 1 \
-     --bootstrap-server localhost:9092
-   ```
+### 1. Create Kafka Topics
 
-2. **Start the Spark streaming job:**
-   ```bash
-   spark-submit \
-     --class movielens.kafka.RatingStreamProcessor \
-     --master local[2] \
-     --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0 \
-     target/movielens-mapreduce-1.0-SNAPSHOT-jar-with-dependencies.jar \
-     /movielens/output-streaming
-   ```
+Both topics are **auto-created** by the producers, but you can create them manually:
 
-3. **Start the Kafka producer:**
-   ```bash
-   java -cp target/movielens-mapreduce-1.0-SNAPSHOT-jar-with-dependencies.jar \
-     movielens.kafka.RatingProducer /movielens/ratings.dat
-   ```
+```bash
+# Topic for MovieLens batch data (mock producer)
+kafka-topics.sh --create \
+  --topic movielens-ratings \
+  --replication-factor 1 \
+  --partitions 1 \
+  --bootstrap-server localhost:9092
 
-4. **TMDB producer (no scraping):**
-    Export your TMDB bearer token and run the producer to publish popular movies.
-   Do not commit the token to git.
-    ```bash
-    export TMDB_TOKEN="<your_tmdb_bearer_token>"
-    java -cp target/movielens-mapreduce-1.0-SNAPSHOT-jar-with-dependencies.jar \
-       movielens.kafka.LetterboxdProducer
-    ```
+# Topic for Letterboxd live data (scraper)
+kafka-topics.sh --create \
+  --topic letterboxd-ratings \
+  --replication-factor 1 \
+  --partitions 1 \
+  --bootstrap-server localhost:9092
+```
 
-    Optional arguments:
-    - `--loop` → run continuously
-    - `<pages>` → number of TMDB pages to fetch per cycle (default: 1)
+### 2. Start the Spark Streaming Job
 
-4. **Streaming output:**
-   The console will display live `movieId`, `avgRating`, and `totalVotes` updates.
+```bash
+spark-submit \
+  --class movielens.streamingkafka.RatingStreamProcessor \
+  --master local[2] \
+  --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0 \
+  target/movielens-mapreduce-1.0-SNAPSHOT-jar-with-dependencies.jar \
+  /movielens/output-streaming
+```
+
+### 3. Start the MovieLens Producer (Batch/Mock Data)
+
+```bash
+java -cp target/movielens-mapreduce-1.0-SNAPSHOT-jar-with-dependencies.jar \
+  movielens.mock.RatingProducer /movielens/ratings.dat
+```
+
+### 4. Start the Letterboxd Producer (Real-time Scraper)
+
+```bash
+java -cp target/movielens-mapreduce-1.0-SNAPSHOT-jar-with-dependencies.jar \
+  movielens.streamingkafka.LetterboxdProducer
+```
+
+**Optional arguments:**
+- `--loop` → run continuously (cycle through films every 60s)
+- `<pages>` → number of pages to fetch per film (default: 3)
+
+**Example with options:**
+```bash
+java -cp target/movielens-mapreduce-1.0-SNAPSHOT-jar-with-dependencies.jar \
+  movielens.streamingkafka.LetterboxdProducer --loop 5
+```
+
+### 5. Monitor Output
+
+The Spark streaming console will display:
+- **console_output**: Per-movie aggregations (every 5s)
+- **source_stats**: Stats grouped by source (every 10s)
+- **hdfs_archive**: Raw data saved to HDFS
+- **hbase_writer**: Results written to HBase `movie_stats` table
+
+---
+
+### Architecture
+
+```
+MovieLens batch data           Letterboxd live data
+         ↓                              ↓
+RatingProducer              LetterboxdProducer
+         ↓                              ↓
+   movielens-ratings        letterboxd-ratings
+         ↓                              ↓
+    ───────────────────────────────────
+                   ↓
+        RatingStreamProcessor
+             (Spark Streaming)
+                   ↓
+        ┌──────────┬──────────┬──────────┐
+        ↓          ↓          ↓          ↓
+     Console    HDFS       HBase    Source Stats
+```

@@ -61,19 +61,16 @@ public class HBaseConnector {
             return;
         }
 
-        TableDescriptorBuilder builder =
-            TableDescriptorBuilder.newBuilder(tn);
+        HTableDescriptor descriptor = new HTableDescriptor(tn);
 
         for (byte[] cf : columnFamilies) {
-            builder.setColumnFamily(
-                ColumnFamilyDescriptorBuilder.newBuilder(cf)
-                    .setMaxVersions(5)      // garder 5 versions
-                    .setTimeToLive(86400 * 7) // TTL : 7 jours
-                    .build()
-            );
+            HColumnDescriptor cfDesc = new HColumnDescriptor(cf)
+                .setMaxVersions(5)
+                .setTimeToLive(86400 * 7);
+            descriptor.addFamily(cfDesc);
         }
 
-        admin.createTable(builder.build());
+        admin.createTable(descriptor);
         System.out.println("  ✓ Table créée : " + tableName);
     }
 
