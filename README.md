@@ -40,27 +40,8 @@ This project uses Apache Hadoop, Spark, Kafka, and Maven.
    - **HDFS**: batch outputs + streaming raw archive.
    - **HBase**: live aggregates in `movie_stats` (row key: `movieId_source`).
 
-### Data flow diagram
+<img width="930" height="333" alt="image" src="https://github.com/user-attachments/assets/2b556474-b424-466b-90df-9c0d4421e68f" />
 
-```
-Batch (offline)                                    Streaming (online)
-MovieLens files                                    Letterboxd site
-ratings.dat + movies.dat                           (scrape ratings)
-      │                                                  │
-      │ MapReduce (MovieRatingAverage)                  │ LetterboxdProducer
-      │ Spark batch (MovieLensAnalysis)                 │
-      ▼                                                  ▼
-    HDFS (batch outputs)                         Kafka: letterboxd-ratings
-      ▲                                                  │
-      │                                          Kafka: movielens-ratings
-      │                                                  │
-RatingProducer (replay ratings.dat)                      │
-      └──────────────────────────────┬───────────────────┘
-                                     ▼
-                        RatingStreamProcessor (Spark)
-                                     ▼
-                     Console + HDFS (raw) + HBase (stats)
-```
 
 ## Data Format
 
